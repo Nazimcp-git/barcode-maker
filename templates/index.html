@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Generate bulk barcode labels for library books with print-ready layouts">
+  <title>Library Barcode Label Generator</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%234f8cff'/><rect x='4' y='6' width='2' height='20' fill='white'/><rect x='8' y='6' width='3' height='20' fill='white'/><rect x='13' y='6' width='1' height='20' fill='white'/><rect x='16' y='6' width='2' height='20' fill='white'/><rect x='20' y='6' width='3' height='20' fill='white'/><rect x='25' y='6' width='1' height='20' fill='white'/><rect x='28' y='6' width='2' height='20' fill='white'/></svg>">
+</head>
+<body>
+  <div class="app-layout">
+
+    <!-- ===== TOP BAR ===== -->
+    <header class="topbar">
+      <div class="topbar-brand">
+        <div class="logo-icon">📚</div>
+        <span>Library Barcode Label Generator</span>
+      </div>
+      <div class="topbar-actions">
+        <select id="templateSelect" class="form-select" style="width:180px;">
+          <option value="">Load Template…</option>
+        </select>
+        <button class="btn btn-secondary btn-sm" id="btnSaveTemplate" title="Save Template">💾 Save</button>
+        <button class="btn btn-secondary btn-sm" id="btnDeleteTemplate" title="Delete Template">🗑️</button>
+      </div>
+    </header>
+
+    <!-- ===== SIDEBAR ===== -->
+    <aside class="sidebar">
+      <div class="sidebar-tabs">
+        <button class="sidebar-tab active" data-tab="data"><span class="tab-icon">📊</span>Data</button>
+        <button class="sidebar-tab" data-tab="barcode"><span class="tab-icon">|||</span>Barcode</button>
+        <button class="sidebar-tab" data-tab="label"><span class="tab-icon">🏷️</span>Label</button>
+        <button class="sidebar-tab" data-tab="layout"><span class="tab-icon">📐</span>Layout</button>
+        <button class="sidebar-tab" data-tab="output"><span class="tab-icon">📦</span>Output</button>
+      </div>
+
+      <!-- === DATA TAB === -->
+      <div class="tab-panel active" id="panel-data">
+        <div class="input-mode-selector">
+          <button class="input-mode-btn active" data-mode="range">Accession Range</button>
+          <button class="input-mode-btn" data-mode="text">Manual Entry</button>
+          <button class="input-mode-btn" data-mode="file">File Upload</button>
+        </div>
+
+        <!-- Range Mode -->
+        <div id="mode-range" class="input-mode-content">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Start Number</label>
+              <input type="number" id="rangeStart" class="form-input" value="100001" min="0">
+            </div>
+            <div class="form-group">
+              <label class="form-label">End Number</label>
+              <input type="number" id="rangeEnd" class="form-input" value="100050" min="0">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Step</label>
+            <input type="number" id="rangeStep" class="form-input" value="1" min="1">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Prefix</label>
+              <input type="text" id="rangePrefix" class="form-input" placeholder="e.g. LIB-">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Suffix</label>
+              <input type="text" id="rangeSuffix" class="form-input" placeholder="e.g. -A">
+            </div>
+          </div>
+        </div>
+
+        <!-- Text Mode -->
+        <div id="mode-text" class="input-mode-content" style="display:none;">
+          <div class="form-group">
+            <label class="form-label">Enter accession numbers (one per line)</label>
+            <textarea id="textInput" class="form-input" rows="10" placeholder="100001&#10;100002&#10;100003&#10;ISBN-978-3-16"></textarea>
+          </div>
+        </div>
+
+        <!-- File Mode -->
+        <div id="mode-file" class="input-mode-content" style="display:none;">
+          <div class="drop-zone" id="fileDropZone">
+            <div class="drop-icon">📁</div>
+            <div class="drop-text">Drop CSV or Excel file here</div>
+            <div class="drop-hint">Columns: Accession No, Title, Call No, etc.</div>
+            <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" style="display:none;">
+          </div>
+          <div id="fileInfo" class="file-info" style="display:none;">
+            <span>📄</span>
+            <span class="file-name" id="fileName"></span>
+            <span class="file-remove" id="fileRemove" title="Remove file">✕</span>
+          </div>
+          <div id="columnSelector" style="display:none; margin-top:12px;">
+            <div class="form-group">
+              <label class="form-label">Barcode Data Column</label>
+              <select id="columnSelect" class="form-select"></select>
+            </div>
+            <div id="dataPreview" style="margin-top:10px; max-height:180px; overflow:auto;"></div>
+          </div>
+        </div>
+
+        <div class="section-group" style="margin-top:16px; padding-top:12px; border-top:1px solid var(--border);">
+          <div class="data-count">Total labels: <strong id="totalCount">50</strong></div>
+        </div>
+      </div>
+
+      <!-- === BARCODE TAB === -->
+      <div class="tab-panel" id="panel-barcode">
+        <div class="section-group">
+          <div class="section-title">Barcode Type</div>
+          <div class="form-group">
+            <select id="barcodeType" class="form-select">
+              <option value="code128" selected>Code 128 (Recommended)</option>
+              <option value="code39">Code 39</option>
+              <option value="ean13">EAN-13</option>
+              <option value="isbn13">ISBN-13</option>
+              <option value="isbn10">ISBN-10</option>
+            </select>
+          </div>
+        </div>
+        <div class="section-group">
+          <div class="section-title">Bar Dimensions</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Bar Height (mm)</label>
+              <input type="number" id="moduleHeight" class="form-input" value="10" min="3" max="30" step="0.5">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Bar Width</label>
+              <input type="number" id="moduleWidth" class="form-input" value="0.25" min="0.1" max="1" step="0.05">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Quiet Zone (mm)</label>
+              <input type="number" id="quietZone" class="form-input" value="2" min="0" max="10">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Text Distance</label>
+              <input type="number" id="textDistance" class="form-input" value="2" min="0" max="10">
+            </div>
+          </div>
+        </div>
+        <div class="section-group">
+          <div class="section-title">Colors</div>
+          <div class="form-group">
+            <label class="form-label">Bar Color</label>
+            <div class="color-group">
+              <input type="color" id="fgColor" class="form-input-color" value="#000000">
+              <input type="text" id="fgColorHex" class="form-input" value="#000000" maxlength="7">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Background</label>
+            <div class="color-group">
+              <input type="color" id="bgColor" class="form-input-color" value="#FFFFFF">
+              <input type="text" id="bgColorHex" class="form-input" value="#FFFFFF" maxlength="7">
+            </div>
+          </div>
+        </div>
+        <div class="section-group">
+          <div class="section-title">Barcode Text</div>
+          <div class="form-switch">
+            <span class="form-label" style="margin:0;">Show number below bars</span>
+            <div class="switch-track active" id="showBarcodeText">
+              <div class="switch-thumb"></div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Barcode Font Size</label>
+            <input type="number" id="barcodeFontSize" class="form-input" value="8" min="4" max="16">
+          </div>
+        </div>
+      </div>
+
+      <!-- === LABEL TAB === -->
+      <div class="tab-panel" id="panel-label">
+        <div class="section-group">
+          <div class="section-title">Library Info</div>
+          <div class="form-group">
+            <label class="form-label">Library Name (Header)</label>
+            <input type="text" id="libraryName" class="form-input" placeholder="e.g. City Public Library" value="">
+          </div>
+        </div>
+        <div class="section-group">
+          <div class="section-title">Label Text</div>
+          <div class="form-switch">
+            <span class="form-label" style="margin:0;">Show value text below barcode</span>
+            <div class="switch-track active" id="showValueText">
+              <div class="switch-thumb"></div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Accession Label Format</label>
+            <input type="text" id="accessionLabel" class="form-input" placeholder="Acc. No: {value}" value="Acc. No: {value}">
+            <div style="font-size:0.7rem; color:var(--text-muted); margin-top:4px;">{value} = barcode data</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Call Number (optional)</label>
+            <input type="text" id="callNumber" class="form-input" placeholder="e.g. 823.914 SHA or leave empty">
+          </div>
+        </div>
+        <div class="section-group">
+          <div class="section-title">Font Settings</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Header Size</label>
+              <input type="number" id="headerFontSize" class="form-input" value="9" min="5" max="20">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Text Size</label>
+              <input type="number" id="valueFontSize" class="form-input" value="8" min="5" max="18">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Text Alignment</label>
+            <select id="textAlignment" class="form-select">
+              <option value="center" selected>Center</option>
+              <option value="left">Left</option>
+              <option value="right">Right</option>
+            </select>
+          </div>
+        </div>
+        <div class="section-group">
+          <div class="section-title">Label Border</div>
+          <div class="form-switch">
+            <span class="form-label" style="margin:0;">Show label border</span>
+            <div class="switch-track" id="labelBorderToggle">
+              <div class="switch-thumb"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- === LAYOUT TAB === -->
+      <div class="tab-panel" id="panel-layout">
+        <div class="section-group">
+          <div class="section-title">Page Setup</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Page Size</label>
+              <select id="pageSize" class="form-select">
+                <option value="A4" selected>A4 (210 × 297 mm)</option>
+                <option value="A5">A5 (148 × 210 mm)</option>
+                <option value="Letter">Letter (8.5 × 11 in)</option>
+                <option value="Legal">Legal (8.5 × 14 in)</option>
+                <option value="Custom">Custom</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Orientation</label>
+              <select id="pageOrientation" class="form-select">
+                <option value="portrait" selected>Portrait</option>
+                <option value="landscape">Landscape</option>
+              </select>
+            </div>
+          </div>
+          <div id="customPageSize" style="display:none;">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Width (mm)</label>
+                <input type="number" id="customPageW" class="form-input" value="210">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Height (mm)</label>
+                <input type="number" id="customPageH" class="form-input" value="297">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="section-group">
+          <div class="section-title">Margins (mm)</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Top</label>
+              <input type="number" id="marginTop" class="form-input" value="12" min="0">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Bottom</label>
+              <input type="number" id="marginBottom" class="form-input" value="12" min="0">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Left</label>
+              <input type="number" id="marginLeft" class="form-input" value="7" min="0">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Right</label>
+              <input type="number" id="marginRight" class="form-input" value="7" min="0">
+            </div>
+          </div>
+        </div>
+        <div class="section-group">
+          <div class="section-title">Label Size (mm)</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Width</label>
+              <input type="number" id="labelWidth" class="form-input" value="64" min="10">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Height</label>
+              <input type="number" id="labelHeight" class="form-input" value="34" min="10">
+            </div>
+          </div>
+        </div>
+        <div class="section-group">
+          <div class="section-title">Spacing (mm)</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Horizontal Gap</label>
+              <input type="number" id="gapH" class="form-input" value="3" min="0">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Vertical Gap</label>
+              <input type="number" id="gapV" class="form-input" value="0" min="0">
+            </div>
+          </div>
+        </div>
+        <div class="section-group">
+          <div class="section-title">Grid</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Columns</label>
+              <input type="number" id="gridColumns" class="form-input" value="3" min="1" max="20">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Rows</label>
+              <input type="number" id="gridRows" class="form-input" value="8" min="1" max="30">
+            </div>
+          </div>
+          <button class="btn btn-secondary btn-sm" id="btnAutoGrid" style="width:100%; margin-top:6px;">⚡ Auto-Calculate Grid</button>
+        </div>
+      </div>
+
+      <!-- === OUTPUT TAB === -->
+      <div class="tab-panel" id="panel-output">
+        <div class="section-group">
+          <div class="section-title">Output Format</div>
+          <div class="form-group">
+            <select id="outputFormat" class="form-select">
+              <option value="pdf" selected>📄 PDF (Print-Ready)</option>
+              <option value="zip">📦 ZIP (Individual Images)</option>
+              <option value="png">🖼️ PNG Sheet</option>
+            </select>
+          </div>
+        </div>
+        <div class="section-group">
+          <div class="section-title">Print Summary</div>
+          <div style="font-size:0.85rem; color:var(--text-secondary); line-height:1.8;">
+            <div>Total labels: <strong id="summaryItems" style="color:var(--text-primary)">50</strong></div>
+            <div>Grid: <strong id="summaryGrid" style="color:var(--text-primary)">3 × 8</strong></div>
+            <div>Per page: <strong id="summaryPerPage" style="color:var(--text-primary)">24</strong></div>
+            <div>Total pages: <strong id="summaryPages" style="color:var(--text-primary)">3</strong></div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ===== PREVIEW PANEL ===== -->
+    <main class="preview-panel">
+      <div class="preview-mode-switch">
+        <button class="preview-mode-btn active" data-preview="single">Single Label</button>
+        <button class="preview-mode-btn" data-preview="layout">Page Layout</button>
+      </div>
+
+      <div id="previewContent">
+        <div class="preview-placeholder" id="previewPlaceholder">
+          <div class="placeholder-icon">🏷️</div>
+          <div>Configure settings to preview your barcode label</div>
+          <button class="btn btn-secondary btn-sm" id="btnRefreshPreview">🔄 Refresh Preview</button>
+        </div>
+        <div class="preview-container" id="previewImage" style="display:none;">
+          <img id="previewImg" src="" alt="Barcode Label Preview">
+        </div>
+      </div>
+
+      <div class="preview-pagination" id="previewPagination" style="display:none;">
+        <button id="prevPage" title="Previous page">◀</button>
+        <span id="pageInfo">Page 1 of 1</span>
+        <button id="nextPage" title="Next page">▶</button>
+      </div>
+    </main>
+
+    <!-- ===== BOTTOM BAR ===== -->
+    <footer class="bottombar">
+      <div class="bottombar-left">
+        <div class="data-count">Ready: <strong id="bottomCount">50</strong> barcode labels</div>
+        <div class="progress-wrap" id="progressWrap">
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill" id="progressFill"></div>
+          </div>
+          <div class="progress-text" id="progressText">Processing…</div>
+        </div>
+      </div>
+      <div class="bottombar-right">
+        <button class="btn btn-danger btn-sm" id="btnCancel" style="display:none;">Cancel</button>
+        <button class="btn btn-primary" id="btnGenerate">
+          🖨️ Generate Labels
+        </button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- ===== SAVE TEMPLATE MODAL ===== -->
+  <div class="modal-overlay" id="saveTemplateModal">
+    <div class="modal">
+      <div class="modal-title">Save Template</div>
+      <div class="form-group">
+        <label class="form-label">Template Name</label>
+        <input type="text" id="templateName" class="form-input" placeholder="My Library Labels">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description (optional)</label>
+        <input type="text" id="templateDesc" class="form-input" placeholder="A4, 3×8 labels, Code 128">
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary btn-sm" id="modalCancel">Cancel</button>
+        <button class="btn btn-primary btn-sm" id="modalSave">Save Template</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="/static/js/utils.js"></script>
+  <script src="/static/js/settings.js"></script>
+  <script src="/static/js/dataInput.js"></script>
+  <script src="/static/js/preview.js"></script>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
